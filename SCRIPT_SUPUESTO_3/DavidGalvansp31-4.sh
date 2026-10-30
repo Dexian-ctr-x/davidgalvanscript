@@ -1,6 +1,8 @@
 #!/bin/bash
 # Script: DavidGalvansp31-4.sh
 # Desinstala los programas escritos en programas.txt (uno por linea).
+# Funciona con programas instalados con apt (.deb) y con snap
+# (el Centro de aplicaciones de Ubuntu instala snaps).
 # programas.txt debe estar en el mismo directorio que este script.
 # Uso: sudo ./DavidGalvansp31-4.sh
 
@@ -8,7 +10,7 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 LISTA="$DIR/programas.txt"
 
-# Hay que ser root para desinstalar paquetes
+# Hay que ser root para desinstalar programas
 if [ "$EUID" -ne 0 ]; then
     echo "Ejecuta el script con sudo."
     exit 1
@@ -34,22 +36,32 @@ while read -r programa || [ -n "$programa" ]; do
         continue
     fi
 
-    # dpkg -s comprueba si el paquete esta instalado
+    # Caso 1: instalado con apt (dpkg -s lo comprueba)
     if dpkg -s "$programa" 2>/dev/null | grep -q "Status: install ok installed"; then
-        echo ">> Desinstalando $programa ..."
+        echo ">> Desinstalando $programa (apt) ..."
         if apt-get purge -y "$programa" > /dev/null 2>&1; then
             echo "   OK: $programa desinstalado."
         else
             echo "   ERROR: no se pudo desinstalar $programa."
         fi
+
+    # Caso 2: instalado como snap (snap list lo comprueba)
+    elif command -v snap > /dev/null 2>&1 && snap list "$programa" > /dev/null 2>&1; then
+        echo ">> Desinstalando $programa (snap) ..."
+        if snap remove --purge "$programa" > /dev/null 2>&1; then
+            echo "   OK: $programa desinstalado."
+        else
+            echo "   ERROR: no se pudo desinstalar $programa."
+        fi
+
+    # Caso 3: no esta instalado de ninguna forma: avisamos y seguimos
     else
-        # No esta instalado: avisamos y seguimos con el siguiente
         echo "!! $programa no esta instalado. Paso al siguiente."
     fi
 
 done < "$LISTA"
 
-# Limpiamos dependencias que ya no hacen falta
+# Limpiamos dependencias de apt que ya no hacen falta
 echo "----------------------------------------"
 echo "Limpiando dependencias sobrantes..."
 apt-get autoremove -y > /dev/null 2>&1
